@@ -29,6 +29,7 @@ object ReplacementPolicy {
     case "random" => new RandomReplacement(n_ways)
     case "lru"    => new TrueLRU(n_ways)
     case "plru"   => new PseudoLRU(n_ways)
+    case "srrip" => new SRRIP(n_ways, 4)
     case t => throw new IllegalArgumentException(s"unknown Replacement Policy type $t")
   }
 }
@@ -71,6 +72,52 @@ class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
   def way = logic.way
 }
 
+class SRRIP(n_ways: Int,  n_states: Int) extends ReplacementPolicy {
+  // TODO: init
+  def nBits: Int = (n_ways * log2Ceil(n_states))
+  def perSet = true
+
+  def get_next_state(state: UInt, touch_way:UInt): UInt = {
+    val nextState = Wire(Vec(n_ways, UInt((n_states - 1).W)))
+    val prevState = state.asTypeOf(nextState)
+//    val nextState = Wire(Vec(n_ways, UInt(n_states.W)))
+    val maxway_val = prevState.reduceLeft((x,y) => Mux(x > y, x, y))
+//    val maxway_val = state.asTypeOf(nextState).zipWithIndex.map(x => (x._1, x._2.asUInt)).reduceLeft((x, y) => Mux(x._1 > y._1, x._1, y._2))
+//    val maxway2 = state.asTypeOf(nextState).zipWithIndex.map(x => (x._1, x._2.asUInt)).reduceLeft((x, y) => Mux(x._1 > y._1, x, y))
+//    val maxway_val = maxway._1
+    val maxway_idx = prevState.indexWhere((x: UInt) => x === maxway_val)
+    val increment = n_states.U - 1.U - maxway_val // -1 again only for maxway
+    nextState.zipWithIndex.map{ case (el, idx) =>
+      el := Mux(idx.U === touch_way, 0.U(n_ways.W), Mux(idx.U === maxway_idx, prevState(idx) + increment - 1.U, prevState(idx) + increment))
+//      el := Mux(idx.U === touch_way, 0.U(n_ways.W), increment)
+    }
+
+    // I have no idea what that monstrosity does.
+    nextState.asTypeOf(state)
+  }
+
+  def get_replace_way(state: UInt): UInt = {
+//    val nextState_2 = state.asTypeOf(Vec(n_ways, UInt((n_states - 1).W)))
+    val nextState_2 = Wire(Vec(n_ways, UInt((n_states - 1).W)))
+    val maxway_val = state.asTypeOf(nextState_2).reduceLeft((x,y) => Mux(x > y, x, y))
+//    val maxway_idx = state.asTypeOf(Wire(Vec(n_ways, UInt((n_states - 1).W)))).indexWhere((x: UInt) => x === maxway_val)
+    val maxway_idx = state.asTypeOf(nextState_2).indexWhere((x: UInt) => x === maxway_val)
+
+    nextState_2.map{ case (el) =>
+      el := 0.U
+    }
+    maxway_idx
+  }
+
+  def state_read = 0.U
+
+  def way = 0.U
+  def miss = {}
+  def hit = {}
+  def access(touch_way: UInt) = {}
+  def access(touch_ways: Seq[Valid[UInt]]) = {}
+}
+
 class TrueLRU(n_ways: Int) extends ReplacementPolicy {
   // True LRU replacement policy, using a triangular matrix to track which sets are more recently used than others.
   // The matrix is packed into a single UInt (or Bits).  Example 4-way (6-bits):
@@ -97,7 +144,7 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
   }
 
   def get_next_state(state: UInt, touch_way: UInt): UInt = {
-    val nextState     = Wire(Vec(n_ways-1, UInt(n_ways.W)))
+      val nextState     = Wire(Vec(n_ways-1, UInt(n_ways.W)))
     val moreRecentVec = extractMRUVec(state)  // reconstruct lower triangular matrix
     val wayDec        = UIntToOH(touch_way, n_ways)
 
