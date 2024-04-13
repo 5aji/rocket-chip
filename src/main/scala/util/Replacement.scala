@@ -73,39 +73,26 @@ class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
 }
 
 class SRRIP(n_ways: Int,  n_states: Int) extends ReplacementPolicy {
-  // TODO: init
   def nBits: Int = (n_ways * log2Ceil(n_states))
   def perSet = true
 
   def get_next_state(state: UInt, touch_way:UInt): UInt = {
     val nextState = Wire(Vec(n_ways, UInt((n_states - 1).W)))
     val prevState = state.asTypeOf(nextState)
-//    val nextState = Wire(Vec(n_ways, UInt(n_states.W)))
     val maxway_val = prevState.reduceLeft((x,y) => Mux(x > y, x, y))
-//    val maxway_val = state.asTypeOf(nextState).zipWithIndex.map(x => (x._1, x._2.asUInt)).reduceLeft((x, y) => Mux(x._1 > y._1, x._1, y._2))
-//    val maxway2 = state.asTypeOf(nextState).zipWithIndex.map(x => (x._1, x._2.asUInt)).reduceLeft((x, y) => Mux(x._1 > y._1, x, y))
-//    val maxway_val = maxway._1
     val maxway_idx = prevState.indexWhere((x: UInt) => x === maxway_val)
     val increment = n_states.U - 1.U - maxway_val // -1 again only for maxway
     nextState.zipWithIndex.map{ case (el, idx) =>
       el := Mux(idx.U === touch_way, 0.U(n_ways.W), Mux(idx.U === maxway_idx, prevState(idx) + increment - 1.U, prevState(idx) + increment))
-//      el := Mux(idx.U === touch_way, 0.U(n_ways.W), increment)
     }
-
-    // I have no idea what that monstrosity does.
     nextState.asTypeOf(state)
   }
 
   def get_replace_way(state: UInt): UInt = {
-//    val nextState_2 = state.asTypeOf(Vec(n_ways, UInt((n_states - 1).W)))
-    val nextState_2 = Wire(Vec(n_ways, UInt((n_states - 1).W)))
-    val maxway_val = state.asTypeOf(nextState_2).reduceLeft((x,y) => Mux(x > y, x, y))
-//    val maxway_idx = state.asTypeOf(Wire(Vec(n_ways, UInt((n_states - 1).W)))).indexWhere((x: UInt) => x === maxway_val)
-    val maxway_idx = state.asTypeOf(nextState_2).indexWhere((x: UInt) => x === maxway_val)
+    val stateVec = state.asTypeOf(Vec(n_ways, UInt((n_states - 1).W)))
+    val maxway_val = stateVec.reduceLeft((x,y) => Mux(x > y, x, y))
+    val maxway_idx = stateVec.indexWhere((x: UInt) => x === maxway_val)
 
-    nextState_2.map{ case (el) =>
-      el := 0.U
-    }
     maxway_idx
   }
 
