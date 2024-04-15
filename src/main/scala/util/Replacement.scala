@@ -108,19 +108,19 @@ class SRRIP(n_ways: Int, n_states: Int) extends ReplacementPolicy {
   def perSet = true
 
   def get_next_state(state: UInt, touch_way: UInt): UInt = {
-    val nextState = Wire(Vec(n_ways, UInt((n_states - 1).W)))
+    val nextState = Wire(Vec(n_ways, UInt(log2Ceil(n_states).W)))
     val prevState = state.asTypeOf(nextState)
     val maxway_val = prevState.reduceLeft((x, y) => Mux(x > y, x, y))
     val maxway_idx = prevState.indexWhere((x: UInt) => x === maxway_val)
     val increment = n_states.U - 1.U - maxway_val // -1 again only for maxway
     nextState.zipWithIndex.map { case (el, idx) =>
-      el := Mux(idx.U === touch_way, 0.U(n_ways.W), Mux(idx.U === maxway_idx, prevState(idx) + increment - 1.U, prevState(idx) + increment))
+      el := Mux(idx.U === touch_way, 0.U(log2Ceil(n_ways).W), Mux(idx.U === maxway_idx, prevState(idx) + increment - 1.U, prevState(idx) + increment))
     }
     nextState.asTypeOf(state)
   }
 
   def get_replace_way(state: UInt): UInt = {
-    val stateVec = state.asTypeOf(Vec(n_ways, UInt((n_states - 1).W)))
+    val stateVec = state.asTypeOf(Vec(n_ways, UInt(log2Ceil(n_states).W)))
     // return the first index equal to the maximum - 1
     stateVec.indexWhere((x: UInt) => x === n_states.U - 1.U)
   }
@@ -141,23 +141,9 @@ class SRRIP(n_ways: Int, n_states: Int) extends ReplacementPolicy {
 class HRRIP(n_ways: Int, n_states_individual: Int, n_states_group: Int, group_width: Int) extends ReplacementPolicy {
   private def nGroups = (n_ways / group_width)
 
-//  private def groupBitsWidth = group_width * log2Ceil(n_states_individual)
-
   def nBits: Int = (n_ways * log2Ceil(n_states_individual) + nGroups * log2Ceil(n_states_group))
 
-  // Cat(individual_vec, group_vec)
   def perSet = true
-
-//  private def extract(state: UInt, group_idx: UInt) = {
-//    //    val individual_state = Wire(Vec(group_width, UInt((n_ways -1).W)))
-//    val datasize = group_width * log2Ceil(n_states_individual)
-//    val individual_state = Wire(UInt((datasize).W))
-//    for (i <- 0 until datasize) {
-//      individual_state(i) := state(datasize.U * group_idx + i.U)
-//    }
-//
-//    individual_state.asTypeOf(Vec(group_width, UInt((n_states_individual - 1).W)))
-//  }
 
   def get_next_state(state: UInt, touch_way: UInt): UInt = {
     val next_group_state = Wire(Vec(nGroups, UInt(log2Ceil(n_states_group).W)))
@@ -190,17 +176,7 @@ class HRRIP(n_ways: Int, n_states_individual: Int, n_states_group: Int, group_wi
       val m = v.reduceLeft((x, y) => Mux(x > y, x, y))
       chunkmaxidx(groupidx) := v.indexWhere((x: UInt) => x === m)
       chunkmaxval(groupidx) := m
-//      val increment = n_states_individual.U - 1.U - m
-//      v.zipWithIndex.map({case (el, subindex) =>
-//        var trueIndex = groupidx * group_width + subindex
-//        el := Mux(trueIndex.U === touch_way, 0.U, Mux(
-//          groupidx.U === maxgroup_idx,
-//          // we modify this group.
-//          // increment operation +
-//          Mux(subindex.U === chunkmaxidx(groupidx), n_states_individual.U - 2.U, prev_individual_state(trueIndex) + increment),
-//          prev_individual_state(trueIndex)
-//        ))
-//      })
+
     })
 
     next_individual_state.zipWithIndex.foreach({ case (w, idx) =>
@@ -213,33 +189,6 @@ class HRRIP(n_ways: Int, n_states_individual: Int, n_states_group: Int, group_wi
       ))
     })
 
-
-    //    val prev_chunk_state = state(nBits - (nGroups * log2Ceil(n_states_group)),0).asTypeOf(next_chunk_state)
-    //    // range of things we can operate on
-    //    val next_chunk_state = Wire(Vec(group_width, UInt((n_states_individual -1).W)))
-    //    val prev_chunk_state = extract(state, maxgroup_idx)
-    //  // slice
-    //  // operate on slice
-    //    val maxchunk_val = prev_chunk_state.reduceLeft((x,y) => Mux(x > y, x, y))
-    //    val maxchunk_idx = prev_chunk_state.indexWhere((x: UInt) => x === maxchunk_val)
-    //    val chunk_incr = n_states_group.U - 1.U - maxchunk_val // -1 again only for maxway
-    //    // operate on slice
-    //    next_chunk_state.zipWithIndex.map({ case (el, idx) =>
-    //      el := Mux(group_width.U * maxgroup_idx + idx.U === touch_way, 0.U(n_ways.W), Mux(idx.U === maxchunk_idx, prev_chunk_state(idx) + chunk_incr - 1.U, prev_chunk_state(idx) + chunk_incr))
-    //    })
-    //
-    //    val prev_indiv_state = state(nBits-(nGroups * log2Ceil(n_states_group)), 0)
-    //    val chunk_vec = prev_indiv_state.asTypeOf(Vec(nGroups, group_width.U * UInt((n_states_individual -1).W)))
-    //    val next_chunk_vec = Wire(Vec(nGroups, group_width.U * UInt((n_states_individual -1).W)))
-    //
-    //    next_chunk_vec.zipWithIndex.map({case (c, i) =>
-    //      c := Mux(i.U === maxgroup_idx, next_chunk_state, chunk_vec(i))
-    //    })
-    //
-    //
-    //    Cat(next_chunk_state.asTypeOf(UInt((group_width * n_states_individual - 1).W)),
-    //      next_group_state.asTypeOf(UInt((nGroups * n_states_group -1).W))
-    //    )
     Cat(
       next_group_state.asTypeOf(UInt((nGroups * log2Ceil(n_states_group)).W)),
       next_individual_state.asTypeOf(UInt((n_ways * log2Ceil(n_states_individual)).W))
@@ -247,17 +196,7 @@ class HRRIP(n_ways: Int, n_states_individual: Int, n_states_group: Int, group_wi
   }
 
   def get_replace_way(state: UInt): UInt = {
-    //    val stateVec = state.asTypeOf(Vec(n_ways, UInt((n_states - 1).W)))
-    //    // return the first index equal to the maximum - 1
-    //    stateVec.indexWhere((x: UInt) => x === n_states.U - 1.U)
-    /*
-    val prev_group_state = state(nBits, nBits - (nGroups * log2Ceil(n_states_group))).asTypeOf(Vec(nGroups, UInt((n_states_group - 1).W)))
-    val maxgroup_idx = prev_group_state.indexWhere((x: UInt) => x === n_states_group.U - 1.U)
 
-    val prev_chunk_state = extract(state, maxgroup_idx)
-    val maxchunk_idx = prev_chunk_state.indexWhere((x: UInt) => x === n_states_individual.U - 1.U)
-    maxchunk_idx + group_width.U * maxgroup_idx
-     */
 
     val prev_group_state = state(nBits - 1, nBits - (nGroups * log2Ceil(n_states_group))).asTypeOf(Vec(nGroups, UInt(log2Ceil(n_states_group).W)))
 
@@ -272,7 +211,6 @@ class HRRIP(n_ways: Int, n_states_individual: Int, n_states_group: Int, group_wi
       chunkmaxidx(groupidx) := v.indexWhere((x: UInt) => x === m)
     })
     chunkmaxidx(groupidx) + groupidx * group_width.U
-//    0.U((n_ways - 1).W)
   }
 
   // junk
