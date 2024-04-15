@@ -103,7 +103,7 @@ class WithNBigCores(
       dcache = Some(DCacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nMSHRs = 0,
-        replacementPolicy = "srrip",
+        replacementPolicy = "hrrip",
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
