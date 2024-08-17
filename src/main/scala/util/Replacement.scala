@@ -39,8 +39,8 @@ object ReplacementPolicy {
     case "random" => new RandomReplacement(n_ways)
     case "lru" => new TrueLRU(n_ways)
     case "plru" => new PseudoLRU(n_ways)
-    case "srrip" => new SRRIP(n_ways, 4)
-    case "hrrip" => new HRRIP(n_ways, 4, 4, 2)
+    case "srrip" => new SRRIP(n_ways, 8)
+    case "hrrip" => new HRRIP(n_ways, 4, 4, 4)
     case t => throw new IllegalArgumentException(s"unknown Replacement Policy type $t")
   }
 }
@@ -113,15 +113,21 @@ class SRRIP(n_ways: Int, n_states: Int) extends ReplacementPolicy {
     val maxway_val = prevState.reduceLeft((x, y) => Mux(x > y, x, y))
     val maxway_idx = prevState.indexWhere((x: UInt) => x === maxway_val)
     val increment = n_states.U - 1.U - maxway_val // -1 again only for maxway
-    nextState.zipWithIndex.map { case (el, idx) =>
-      el := Mux(idx.U === touch_way, 0.U(log2Ceil(n_ways).W), Mux(idx.U === maxway_idx, prevState(idx) + increment - 1.U, prevState(idx) + increment))
+    nextState.zipWithIndex.foreach { case (el, idx) =>
+      el := Mux(idx.U === touch_way,
+        0.U(log2Ceil(n_ways).W),
+        Mux(idx.U === maxway_idx,
+          prevState(idx) + increment - 1.U,
+          prevState(idx) + increment
+        )
+      )
     }
     nextState.asTypeOf(state)
   }
 
   def get_replace_way(state: UInt): UInt = {
     val stateVec = state.asTypeOf(Vec(n_ways, UInt(log2Ceil(n_states).W)))
-    // return the first index equal to the maximum - 1
+    // return the first index equal to the maximum
     stateVec.indexWhere((x: UInt) => x === n_states.U - 1.U)
   }
 

@@ -104,6 +104,7 @@ class WithNBigCores(
         rowBits = site(SystemBusKey).beatBits,
         nMSHRs = 0,
         replacementPolicy = "hrrip",
+        nWays = 16,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,

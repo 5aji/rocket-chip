@@ -1,4 +1,5 @@
 out/
+venv/
 target/
 project/target
 docs/generated
